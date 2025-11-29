@@ -1,48 +1,71 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { getSupabaseClient } from '@/lib/supabase-client'
 import Image from 'next/image'
 
 interface ProfileUploadProps {
   user: any
+  // Optional profile URL from parent component - enables state persistence across navigation
+  profileUrl?: string | null
+  // Optional setter function - allows parent to manage profile URL state
+  setProfileUrl?: (url: string | null) => void
 }
 
-export default function ProfileUpload({ user }: ProfileUploadProps) {
+export default function ProfileUpload({ user, profileUrl: propProfileUrl, setProfileUrl: propSetProfileUrl }: ProfileUploadProps) {
   const [uploading, setUploading] = useState(false)
-  const [profileUrl, setProfileUrl] = useState<string | null>(null)
+  
+  // Local state fallback - component can work independently or with parent state
+  // This pattern makes the component reusable in different contexts
+  const [localProfileUrl, setLocalProfileUrl] = useState<string | null>(propProfileUrl || null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Smart state management: use props if provided, otherwise use local state
+  // This allows the component to work both standalone and with global state
+  const profileUrl = propProfileUrl || localProfileUrl
+  const setProfileUrl = propSetProfileUrl || setLocalProfileUrl
+
+  // Load profile URL from user metadata on component mount and user change
+  useEffect(() => {
+    if (user?.user_metadata?.profile_url) {
+      setProfileUrl(user.user_metadata.profile_url)
+    }
+  }, [user, setProfileUrl])
 
   const uploadProfileImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setUploading(true)
 
+      // Validate file selection
       if (!event.target.files || event.target.files.length === 0) {
         throw new Error('You must select an image to upload.')
       }
 
       const file = event.target.files[0]
       
+      // File validation - ensure it's an image and within size limits
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Only image files are allowed')
+      }
+
       // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         throw new Error('File size must be less than 5MB')
       }
 
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        throw new Error('Only image files are allowed')
-      }
-
+      // Get Supabase client with error handling
       const supabase = getSupabaseClient()
       if (!supabase) {
         throw new Error('Supabase client not available')
       }
 
+      // Generate unique filename to avoid conflicts
       const fileExt = file.name.split('.').pop()
       const fileName = `profile-${user.id}-${Date.now()}.${fileExt}`
       const filePath = `profiles/${fileName}`
 
-      // Upload the file
+      // Upload to Supabase Storage with upsert option
+      // upsert: true allows overwriting existing files with same name
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, file, {
@@ -51,19 +74,34 @@ export default function ProfileUpload({ user }: ProfileUploadProps) {
 
       if (uploadError) throw uploadError
 
-      // Get public URL
+      // Generate public URL for the uploaded file
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath)
 
+      // Update profile URL state (either local or parent state)
       setProfileUrl(publicUrl)
 
-      // Reset file input
+      // Store profile URL in user metadata for persistence across sessions
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { 
+          profile_url: publicUrl,
+          profile_file_path: filePath 
+        }
+      })
+
+      if (updateError) {
+        console.warn('Failed to update user metadata:', updateError)
+        // Don't throw error - upload succeeded, just metadata failed
+      }
+
+      // Reset file input for subsequent uploads
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
 
     } catch (error) {
+      // User-friendly error handling
       alert(`Error uploading profile image: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setUploading(false)
@@ -139,17 +177,7 @@ export default function ProfileUpload({ user }: ProfileUploadProps) {
             </div>
           </div>
 
-          {profileUrl && (
-            <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-md">
-              <p className="text-sm text-green-800">
-                ✅ Profile picture uploaded successfully!
-              </p>
-              <p className="text-xs text-green-600 mt-1">
-                URL: {profileUrl}
-              </p>
-            </div>
-          )}
-        </div>
+                  </div>
       </div>
 
       {/* User Info Card */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Auth from '@/components/Auth'
 import Navigation from '@/components/Navigation'
 import ProfileUpload from '@/components/ProfileUpload'
@@ -10,24 +10,45 @@ import SupabaseProvider from '@/components/SupabaseProvider'
 import { User } from '@supabase/supabase-js'
 
 export default function Home() {
+  // Global state for user authentication and navigation
   const [user, setUser] = useState<User | null>(null)
   const [currentPage, setCurrentPage] = useState('profile')
+  
+  // Profile URL state persists across navigation - this is the key fix
+  // Without this, the profile image would disappear when navigating between pages
+  const [profileUrl, setProfileUrl] = useState<string | null>(null)
 
+  // Load profile URL from user metadata when user changes
+  useEffect(() => {
+    if (user?.user_metadata?.profile_url) {
+      setProfileUrl(user.user_metadata.profile_url)
+    } else {
+      setProfileUrl(null)
+    }
+  }, [user])
+
+  // Handle user sign out - reset all user-related state
   const handleSignOut = () => {
     setUser(null)
     setCurrentPage('profile')
+    setProfileUrl(null) // Clear profile image on sign out
   }
 
+  // Router function to render the correct page component based on current navigation
+  // This pattern allows for easy addition of new pages in the future
   const renderCurrentPage = () => {
     switch (currentPage) {
       case 'profile':
-        return <ProfileUpload user={user} />
+        // Pass profileUrl state down to ProfileUpload component
+        // This ensures the profile image persists across navigation
+        return <ProfileUpload user={user} profileUrl={profileUrl} setProfileUrl={setProfileUrl} />
       case 'storage':
         return <StorageManager user={user} />
       case 'gallery':
         return <ImageGallery user={user} />
       default:
-        return <ProfileUpload user={user} />
+        // Fallback to profile page
+        return <ProfileUpload user={user} profileUrl={profileUrl} setProfileUrl={setProfileUrl} />
     }
   }
 

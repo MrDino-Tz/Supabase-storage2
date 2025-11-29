@@ -61,7 +61,7 @@ export default function FileUpload({ bucket, onUploadComplete }: FileUploadProps
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
-      <h3 className="text-lg font-semibold mb-4">Upload File to {bucket}</h3>
+      <h3 className="text-lg font-semibold mb-4 text-gray-900">Upload File to {bucket}</h3>
       
       <div className="space-y-4">
         <div>

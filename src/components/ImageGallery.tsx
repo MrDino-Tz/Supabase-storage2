@@ -230,7 +230,7 @@ export default function ImageGallery({ user }: ImageGalleryProps) {
           >
             <div className="p-4 border-b">
               <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium">{selectedImage.name}</h3>
+                <h3 className="text-lg font-medium text-gray-900">{selectedImage.name}</h3>
                 <button
                   onClick={() => setSelectedImage(null)}
                   className="text-gray-400 hover:text-gray-600"
